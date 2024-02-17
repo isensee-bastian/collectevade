@@ -31,6 +31,7 @@ type model struct {
 	playerRow int
 	playerCol int
 
+	score    int
 	gameOver bool
 }
 
@@ -84,7 +85,8 @@ func (m *model) movePlayer(row, col int) {
 
 	if m.table[row][col] == item {
 		// We collected an item. A new item and enemy needs to be
-		// spawned.
+		// spawned. Increase the score.
+		m.score++
 		m.spawnItem()
 		m.spawnEnemy()
 	}
@@ -131,39 +133,45 @@ func (m *model) playerRight() {
 	m.movePlayer(m.playerRow, m.playerCol+1)
 }
 
-// newModel is responsible for creating an initial model that is ready to use.
-func newModel() *model {
+// init is responsible for initializing or resetting a model that is ready
+// to use for a new game.
+func (m *model) init() {
+	// Clear and reset all fields as init() is also used for restarting
+	// an existing game. Therefore our model needs to be fresh.
 	// By default, all entries in our table have value zero as type rune
-	// is based on int and represents symbols. We only set non-empty fields
-	// explicitly.
-	model := &model{}
+	// is based on int and represents symbols. Initially, all cells are
+	// empty.
+	var table [tableHeight][tableWidth]rune
+	m.table = table
+	m.playerRow = 0
+	m.playerCol = 0
+	m.score = 0
+	m.gameOver = false
 
 	// Set the four corners.
-	model.table[0][0] = corner
-	model.table[0][tableWidth-1] = corner
-	model.table[tableHeight-1][0] = corner
-	model.table[tableHeight-1][tableWidth-1] = corner
+	m.table[0][0] = corner
+	m.table[0][tableWidth-1] = corner
+	m.table[tableHeight-1][0] = corner
+	m.table[tableHeight-1][tableWidth-1] = corner
 
 	// Draw horizontal borders at the top and bottom.
 	for col := 1; col < tableWidth-1; col++ {
-		model.table[0][col] = lineHorizontal
-		model.table[tableHeight-1][col] = lineHorizontal
+		m.table[0][col] = lineHorizontal
+		m.table[tableHeight-1][col] = lineHorizontal
 	}
 
 	// Draw vertical borders on the left and right side.
 	for row := 1; row < tableHeight-1; row++ {
-		model.table[row][0] = lineVertical
-		model.table[row][tableWidth-1] = lineVertical
+		m.table[row][0] = lineVertical
+		m.table[row][tableWidth-1] = lineVertical
 	}
 
 	// Spawn our player near the top left corner.
-	model.playerRow = 1
-	model.playerCol = 1
-	model.table[model.playerRow][model.playerCol] = player
+	m.playerRow = 1
+	m.playerCol = 1
+	m.table[m.playerRow][m.playerCol] = player
 
-	model.spawnItem()
-
-	return model
+	m.spawnItem()
 }
 
 // Init can be used to setup initial command to perform.
@@ -180,9 +188,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 
-		// If our game is lost, any key shall terminate the program.
+		// If our game is lost, any key shall restart the game.
 		if m.gameOver {
-			return m, tea.Quit
+
+			switch msg.String() {
+
+			case "ctrl+c", "q":
+				return m, tea.Quit
+			case "enter":
+				m.init()
+				return m, nil
+			}
 		}
 
 		switch msg.String() {
@@ -207,12 +223,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View is required for building what we want to show on the screen.
 // That means we need to translate our model data into a string for displaying.
 func (m *model) View() string {
+	builder := strings.Builder{}
+
 	if m.gameOver {
 		// Just inform about game over and don't continue.
-		return "Player died, Game Over!"
-	}
+		builder.WriteString("\n\n\n\n\n")
+		builder.WriteString("          You died, Game Over!")
+		builder.WriteString("\n\n")
+		builder.WriteString(fmt.Sprintf("          Your score: %d", m.score))
+		builder.WriteString("\n\n")
+		builder.WriteString("          Press enter to restart or q to quit")
 
-	builder := strings.Builder{}
+		return builder.String()
+	}
 
 	// Iterate our table (2d array) and print non-empty fields as set in
 	// our model. Empty (zero) fields shall be printed with a blank space.
@@ -235,7 +258,8 @@ func (m *model) View() string {
 
 func main() {
 	// Create our initial model.
-	model := newModel()
+	model := &model{}
+	model.init()
 
 	// Program setup to initialize bubbletea and use full screen.
 	program := tea.NewProgram(model, tea.WithAltScreen())
