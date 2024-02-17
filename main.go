@@ -19,8 +19,9 @@ const (
 	lineVertical   = '|'
 	lineHorizontal = '-'
 	empty          = ' '
-	player         = 'o'
+	player         = '0'
 	item           = '$'
+	enemy          = 'X'
 )
 
 // model encapsulates our data for displaying and updating.
@@ -30,13 +31,22 @@ type model struct {
 	playerRow int
 	playerCol int
 
-	itemRow int
-	itemCol int
+	gameOver bool
 }
 
 func (m *model) spawnItem() {
+	row, col := m.randomFreeCoordinates()
+	m.table[row][col] = item
+}
+
+func (m *model) spawnEnemy() {
+	row, col := m.randomFreeCoordinates()
+	m.table[row][col] = enemy
+}
+
+func (m *model) randomFreeCoordinates() (row, col int) {
 	// Generate some random coordinates.
-	row, col := randomCoordinates()
+	row, col = randomCoordinates()
 
 	// Check that the random cell is empty.
 	// If not repeat randomizing until we find an empty cell.
@@ -44,15 +54,13 @@ func (m *model) spawnItem() {
 		row, col = randomCoordinates()
 	}
 
-	m.table[row][col] = item
-	m.itemRow = row
-	m.itemCol = col
+	return
 }
 
 // randomCoordinates returns a new set of random coordinates within the
 // playing field excluding borders. However, it is not guaranteed that the
 // cell under the returned coordinates is actually empty.
-func randomCoordinates() (row int, col int) {
+func randomCoordinates() (row, col int) {
 	row = rand.Intn(tableHeight-2) + 1
 	col = rand.Intn(tableWidth-2) + 1
 
@@ -60,19 +68,31 @@ func randomCoordinates() (row int, col int) {
 }
 
 func (m *model) movePlayer(row, col int) {
+	if m.gameOver {
+		return
+	}
+
 	// Clear old player location.
 	m.table[m.playerRow][m.playerCol] = 0
+
+	if m.table[row][col] == enemy {
+		// We ran into an enemy. Signal game over and skip further
+		// processing.
+		m.gameOver = true
+		return
+	}
+
+	if m.table[row][col] == item {
+		// We collected an item. A new item and enemy needs to be
+		// spawned.
+		m.spawnItem()
+		m.spawnEnemy()
+	}
 
 	// Set new player location.
 	m.table[row][col] = player
 	m.playerRow = row
 	m.playerCol = col
-
-	// Check if we are at the position of an item. Then we need to
-	// spawn a new item.
-	if m.itemRow == row && m.itemCol == col {
-		m.spawnItem()
-	}
 }
 
 func (m *model) playerUp() {
@@ -160,6 +180,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 
+		// If our game is lost, any key shall terminate the program.
+		if m.gameOver {
+			return m, tea.Quit
+		}
+
 		switch msg.String() {
 
 		// Exit program on ctrl+c or q typing.
@@ -182,6 +207,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View is required for building what we want to show on the screen.
 // That means we need to translate our model data into a string for displaying.
 func (m *model) View() string {
+	if m.gameOver {
+		// Just inform about game over and don't continue.
+		return "Player died, Game Over!"
+	}
+
 	builder := strings.Builder{}
 
 	// Iterate our table (2d array) and print non-empty fields as set in
