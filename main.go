@@ -18,11 +18,61 @@ const (
 	lineVertical   = '|'
 	lineHorizontal = '-'
 	empty          = ' '
+	player         = 'o'
 )
 
 // model encapsulates our data for displaying and updating.
 type model struct {
 	table [tableHeight][tableWidth]rune
+
+	playerRow int
+	playerCol int
+}
+
+func (m *model) move(row, col int) {
+	// Clear old player location.
+	m.table[m.playerRow][m.playerCol] = 0
+
+	// Set new player location.
+	m.table[row][col] = player
+	m.playerRow = row
+	m.playerCol = col
+}
+
+func (m *model) playerUp() {
+	if m.playerRow <= 1 {
+		// Do nothing as we are already at the border and cannot move.
+		return
+	}
+
+	m.move(m.playerRow-1, m.playerCol)
+}
+
+func (m *model) playerDown() {
+	if m.playerRow >= tableHeight-2 {
+		// Do nothing as we are already at the border and cannot move.
+		return
+	}
+
+	m.move(m.playerRow+1, m.playerCol)
+}
+
+func (m *model) playerLeft() {
+	if m.playerCol <= 1 {
+		// Do nothing as we are already at the border and cannot move.
+		return
+	}
+
+	m.move(m.playerRow, m.playerCol-1)
+}
+
+func (m *model) playerRight() {
+	if m.playerCol >= tableWidth-2 {
+		// Do nothing as we are already at the border and cannot move.
+		return
+	}
+
+	m.move(m.playerRow, m.playerCol+1)
 }
 
 // newModel is responsible for creating an initial model that is ready to use.
@@ -50,6 +100,11 @@ func newModel() *model {
 		model.table[row][tableWidth-1] = lineVertical
 	}
 
+	// Spawn our player near the top left corner.
+	model.playerRow = 1
+	model.playerCol = 1
+	model.table[model.playerRow][model.playerCol] = player
+
 	return model
 }
 
@@ -72,6 +127,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Exit program on ctrl+c or q typing.
 		case "ctrl+c", "q":
 			return m, tea.Quit
+		case "up":
+			m.playerUp()
+		case "down":
+			m.playerDown()
+		case "left":
+			m.playerLeft()
+		case "right":
+			m.playerRight()
 		}
 	}
 
