@@ -45,13 +45,46 @@ func (m *model) spawnEnemy() {
 	m.table[row][col] = enemy
 }
 
+func (m *model) moveEnemies() {
+	for row := 1; row < tableHeight-1; row++ {
+		for col := 1; col < tableWidth-1; col++ {
+			if m.table[row][col] == enemy {
+				// Move enemy randomly to one of the four directly neighbooring cells if it is empty
+				// or contains the player. Borders, items and other enemies will block enemy moves though.
+
+				neighboors := [4][2]int{
+					[2]int{row - 1, col}, // Top neighboor.
+					[2]int{row, col + 1}, // Right neighboor.
+					[2]int{row + 1, col}, // Bottom neighboor.
+					[2]int{row, col - 1}, // Right neighboor.
+				}
+
+				targetIndex := rand.Intn(len(neighboors))
+				targetRow := neighboors[targetIndex][0]
+				targetCol := neighboors[targetIndex][1]
+
+				if m.table[targetRow][targetCol] == empty {
+					// Target cell is empty. Move enemy and clear the old one.
+					m.table[targetRow][targetCol] = enemy
+					m.table[row][col] = empty
+				} else if m.table[targetRow][targetCol] == player {
+					// Target cell contains the player. Attack and stop further processing, this game is over!
+					m.gameOver = true
+
+					return
+				}
+			}
+		}
+	}
+}
+
 func (m *model) randomFreeCoordinates() (row, col int) {
 	// Generate some random coordinates.
 	row, col = randomCoordinates()
 
 	// Check that the random cell is empty.
 	// If not repeat randomizing until we find an empty cell.
-	for m.table[row][col] != 0 {
+	for m.table[row][col] != empty {
 		row, col = randomCoordinates()
 	}
 
@@ -74,7 +107,7 @@ func (m *model) movePlayer(row, col int) {
 	}
 
 	// Clear old player location.
-	m.table[m.playerRow][m.playerCol] = 0
+	m.table[m.playerRow][m.playerCol] = empty
 
 	if m.table[row][col] == enemy {
 		// We ran into an enemy. Signal game over and skip further
@@ -137,12 +170,15 @@ func (m *model) playerRight() {
 // to use for a new game.
 func (m *model) init() {
 	// Clear and reset all fields as init() is also used for restarting
-	// an existing game. Therefore our model needs to be fresh.
-	// By default, all entries in our table have value zero as type rune
-	// is based on int and represents symbols. Initially, all cells are
-	// empty.
-	var table [tableHeight][tableWidth]rune
-	m.table = table
+	// an existing game. Therefore, our model needs to be fresh.
+
+	// Initially, set every cell to our empty symbol.
+	for row := 0; row < tableHeight; row++ {
+		for col := 0; col < tableWidth; col++ {
+			m.table[row][col] = empty
+		}
+	}
+
 	m.playerRow = 0
 	m.playerCol = 0
 	m.score = 0
@@ -208,12 +244,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "up":
 			m.playerUp()
+			m.moveEnemies()
 		case "down":
 			m.playerDown()
+			m.moveEnemies()
 		case "left":
 			m.playerLeft()
+			m.moveEnemies()
 		case "right":
 			m.playerRight()
+			m.moveEnemies()
 		}
 	}
 
@@ -237,16 +277,11 @@ func (m *model) View() string {
 		return builder.String()
 	}
 
-	// Iterate our table (2d array) and print non-empty fields as set in
-	// our model. Empty (zero) fields shall be printed with a blank space.
+	// Iterate our table (2d array) and print the cells.
 	for _, row := range m.table {
 
 		for _, cell := range row {
-			if cell == 0 {
-				builder.WriteRune(empty)
-			} else {
-				builder.WriteRune(cell)
-			}
+			builder.WriteRune(cell)
 		}
 
 		// Go to next line after each row.
