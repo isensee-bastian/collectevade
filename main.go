@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
 
@@ -19,6 +20,7 @@ const (
 	lineHorizontal = '-'
 	empty          = ' '
 	player         = 'o'
+	item           = '$'
 )
 
 // model encapsulates our data for displaying and updating.
@@ -27,9 +29,37 @@ type model struct {
 
 	playerRow int
 	playerCol int
+
+	itemRow int
+	itemCol int
 }
 
-func (m *model) move(row, col int) {
+func (m *model) spawnItem() {
+	// Generate some random coordinates.
+	row, col := randomCoordinates()
+
+	// Check that the random cell is empty.
+	// If not repeat randomizing until we find an empty cell.
+	for m.table[row][col] != 0 {
+		row, col = randomCoordinates()
+	}
+
+	m.table[row][col] = item
+	m.itemRow = row
+	m.itemCol = col
+}
+
+// randomCoordinates returns a new set of random coordinates within the
+// playing field excluding borders. However, it is not guaranteed that the
+// cell under the returned coordinates is actually empty.
+func randomCoordinates() (row int, col int) {
+	row = rand.Intn(tableHeight-2) + 1
+	col = rand.Intn(tableWidth-2) + 1
+
+	return
+}
+
+func (m *model) movePlayer(row, col int) {
 	// Clear old player location.
 	m.table[m.playerRow][m.playerCol] = 0
 
@@ -37,6 +67,12 @@ func (m *model) move(row, col int) {
 	m.table[row][col] = player
 	m.playerRow = row
 	m.playerCol = col
+
+	// Check if we are at the position of an item. Then we need to
+	// spawn a new item.
+	if m.itemRow == row && m.itemCol == col {
+		m.spawnItem()
+	}
 }
 
 func (m *model) playerUp() {
@@ -45,7 +81,7 @@ func (m *model) playerUp() {
 		return
 	}
 
-	m.move(m.playerRow-1, m.playerCol)
+	m.movePlayer(m.playerRow-1, m.playerCol)
 }
 
 func (m *model) playerDown() {
@@ -54,7 +90,7 @@ func (m *model) playerDown() {
 		return
 	}
 
-	m.move(m.playerRow+1, m.playerCol)
+	m.movePlayer(m.playerRow+1, m.playerCol)
 }
 
 func (m *model) playerLeft() {
@@ -63,7 +99,7 @@ func (m *model) playerLeft() {
 		return
 	}
 
-	m.move(m.playerRow, m.playerCol-1)
+	m.movePlayer(m.playerRow, m.playerCol-1)
 }
 
 func (m *model) playerRight() {
@@ -72,7 +108,7 @@ func (m *model) playerRight() {
 		return
 	}
 
-	m.move(m.playerRow, m.playerCol+1)
+	m.movePlayer(m.playerRow, m.playerCol+1)
 }
 
 // newModel is responsible for creating an initial model that is ready to use.
@@ -104,6 +140,8 @@ func newModel() *model {
 	model.playerRow = 1
 	model.playerCol = 1
 	model.table[model.playerRow][model.playerCol] = player
+
+	model.spawnItem()
 
 	return model
 }
